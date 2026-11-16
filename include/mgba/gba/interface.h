@@ -127,6 +127,7 @@ struct GBASIODriver {
 	void (*finishMultiplayer)(struct GBASIODriver* driver, uint16_t data[4]);
 	uint8_t (*finishNormal8)(struct GBASIODriver* driver);
 	uint32_t (*finishNormal32)(struct GBASIODriver* driver);
+	uint16_t (*readRCNT)(struct GBASIODriver* driver, uint16_t value);
 };
 
 enum GBASIOBattleChipGateFlavor {

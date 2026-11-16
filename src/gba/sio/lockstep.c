@@ -91,6 +91,8 @@ static int GBASIOLockstepDriverConnectedDevices(struct GBASIODriver* driver);
 static int GBASIOLockstepDriverDeviceId(struct GBASIODriver* driver);
 static uint16_t GBASIOLockstepDriverWriteSIOCNT(struct GBASIODriver* driver, uint16_t value);
 static uint16_t GBASIOLockstepDriverWriteRCNT(struct GBASIODriver* driver, uint16_t value);
+static uint16_t GBASIOLockstepDriverReadRCNT(struct GBASIODriver* driver, uint16_t value);
+static uint16_t _gpioInputs(struct GBASIOLockstepCoordinator*, int playerId, uint16_t value);
 static bool GBASIOLockstepDriverStart(struct GBASIODriver* driver);
 static void GBASIOLockstepDriverFinishMultiplayer(struct GBASIODriver* driver, uint16_t data[4]);
 static uint8_t GBASIOLockstepDriverFinishNormal8(struct GBASIODriver* driver);
@@ -162,6 +164,7 @@ void GBASIOLockstepDriverCreate(struct GBASIOLockstepDriver* driver, struct mLoc
 	driver->d.connectedDevices = GBASIOLockstepDriverConnectedDevices;
 	driver->d.writeSIOCNT = GBASIOLockstepDriverWriteSIOCNT;
 	driver->d.writeRCNT = GBASIOLockstepDriverWriteRCNT;
+	driver->d.readRCNT = GBASIOLockstepDriverReadRCNT;
 	driver->d.start = GBASIOLockstepDriverStart;
 	driver->d.finishMultiplayer = GBASIOLockstepDriverFinishMultiplayer;
 	driver->d.finishNormal8 = GBASIOLockstepDriverFinishNormal8;
@@ -480,6 +483,9 @@ static void GBASIOLockstepDriverSetMode(struct GBASIODriver* driver, enum GBASIO
 	if (mode != player->mode) {
 		mLOG(GBA_SIO, DEBUG, "Switching mode from %d to %d", player->mode, mode);
 		player->mode = mode;
+		if (mode != GBA_SIO_GPIO && player->playerId >= 0 && player->playerId < MAX_GBAS) {
+			coordinator->gpioActive &= ~(1 << player->playerId);
+		}
 		struct GBASIOLockstepEvent event = {
 			.type = SIO_EV_MODE_SET,
 			.playerId = player->playerId,
@@ -534,9 +540,81 @@ static uint16_t GBASIOLockstepDriverWriteSIOCNT(struct GBASIODriver* driver, uin
 }
 
 static uint16_t GBASIOLockstepDriverWriteRCNT(struct GBASIODriver* driver, uint16_t value) {
-	UNUSED(driver);
 	mLOG(GBA_SIO, DEBUG, "Lockstep: RCNT <- %04X", value);
+	if (driver->p->mode != GBA_SIO_GPIO) {
+		return value;
+	}
+	// General Purpose mode: publish this player's pin outputs, then read its inputs from the cable
+	struct GBASIOLockstepDriver* lockstep = (struct GBASIOLockstepDriver*) driver;
+	struct GBASIOLockstepCoordinator* coordinator = lockstep->coordinator;
+	MutexLock(&coordinator->mutex);
+	struct GBASIOLockstepPlayer* player = TableLookup(&coordinator->players, lockstep->lockstepId);
+	if (player && player->playerId >= 0 && player->playerId < MAX_GBAS) {
+		coordinator->gpioLatch[player->playerId] = value & 0xFF;
+		coordinator->gpioActive |= 1 << player->playerId;
+		value = _gpioInputs(coordinator, player->playerId, value);
+	}
+	MutexUnlock(&coordinator->mutex);
 	return value;
+}
+
+static uint16_t GBASIOLockstepDriverReadRCNT(struct GBASIODriver* driver, uint16_t value) {
+	struct GBASIOLockstepDriver* lockstep = (struct GBASIOLockstepDriver*) driver;
+	struct GBASIOLockstepCoordinator* coordinator = lockstep->coordinator;
+	MutexLock(&coordinator->mutex);
+	struct GBASIOLockstepPlayer* player = TableLookup(&coordinator->players, lockstep->lockstepId);
+	if (player && player->playerId >= 0 && player->playerId < MAX_GBAS) {
+		value = _gpioInputs(coordinator, player->playerId, value);
+	}
+	MutexUnlock(&coordinator->mutex);
+	return value;
+}
+
+// The level of one pin of the link cable as seen by a player in General Purpose mode (Claude, 16 Nov 2026, for
+// Final Fantasy Tactics Advance link missions; private build). Pins: SC bit 0, SD bit 1, SI bit 2, SO bit 3;
+// RCNT bits 4-7 set a pin as output. SC and SD are shared by all players (any player driving low pulls the line
+// low; undriven lines read high). SI of player N is wired to SO of player N-1 (player 0's SI is grounded); SO of
+// player N reads SI of player N+1 when that player drives it. A player's own output pins read back its latch.
+static uint16_t _gpioInputs(struct GBASIOLockstepCoordinator* coordinator, int playerId, uint16_t value) {
+	unsigned own = value & 0xFF;
+	unsigned dir = (own >> 4) & 0xF;
+	unsigned in = own & dir & 0xF;
+	int pin;
+	for (pin = 0; pin < 4; ++pin) {
+		if (dir & (1 << pin)) {
+			continue;
+		}
+		unsigned level = 1;
+		int other;
+		switch (pin) {
+		case 0:
+		case 1:
+			for (other = 0; other < coordinator->nAttached && other < MAX_GBAS; ++other) {
+				if (other == playerId || !(coordinator->gpioActive & (1 << other))) {
+					continue;
+				}
+				unsigned latch = coordinator->gpioLatch[other];
+				if ((latch >> (4 + pin)) & 1) {
+					level &= (latch >> pin) & 1;
+				}
+			}
+			break;
+		case 2:
+			if (playerId == 0) {
+				level = 0;
+			} else if ((coordinator->gpioActive & (1 << (playerId - 1))) && (coordinator->gpioLatch[playerId - 1] & 0x80)) {
+				level = (coordinator->gpioLatch[playerId - 1] >> 3) & 1;
+			}
+			break;
+		case 3:
+			if (playerId + 1 < coordinator->nAttached && playerId + 1 < MAX_GBAS && (coordinator->gpioActive & (1 << (playerId + 1))) && (coordinator->gpioLatch[playerId + 1] & 0x40)) {
+				level = (coordinator->gpioLatch[playerId + 1] >> 2) & 1;
+			}
+			break;
+		}
+		in |= level << pin;
+	}
+	return (value & ~0xF) | in;
 }
 
 static bool GBASIOLockstepDriverStart(struct GBASIODriver* driver) {

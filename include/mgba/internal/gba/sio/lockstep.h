@@ -45,6 +45,10 @@ struct GBASIOLockstepCoordinator {
 
 	uint16_t multiData[4];
 	uint32_t normalData[4];
+
+	// General Purpose mode: each player's RCNT low byte (data bits 0-3, direction bits 4-7) while in GPIO mode
+	uint8_t gpioLatch[MAX_GBAS];
+	uint32_t gpioActive;
 };
 
 struct GBASIOLockstepEvent {

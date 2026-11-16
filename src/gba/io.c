@@ -820,6 +820,9 @@ uint16_t GBAIORead(struct GBA* gba, uint32_t address) {
 	case GBA_REG_SIOCNT:
 		return gba->sio.siocnt;
 	case GBA_REG_RCNT:
+		if (gba->sio.mode == GBA_SIO_GPIO && gba->sio.driver && gba->sio.driver->readRCNT) {
+			gba->sio.rcnt = gba->sio.driver->readRCNT(gba->sio.driver, gba->sio.rcnt);
+		}
 		return gba->sio.rcnt;
 
 	case GBA_REG_BG0HOFS:
