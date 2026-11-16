@@ -49,6 +49,13 @@ struct GBASIOLockstepCoordinator {
 	// General Purpose mode: each player's RCNT low byte (data bits 0-3, direction bits 4-7) while in GPIO mode
 	uint8_t gpioLatch[MAX_GBAS];
 	uint32_t gpioActive;
+	// What each player (first index) currently sees of each other player's pins, and the pin changes it has not
+	// taken in yet. A player takes in one queued change per other player each time it writes RCNT, so every
+	// change is seen once, however the two emulators' threads happen to be scheduled.
+	uint8_t gpioSeen[MAX_GBAS][MAX_GBAS];
+	uint8_t gpioQueue[MAX_GBAS][MAX_GBAS][16];
+	uint8_t gpioQueueStart[MAX_GBAS][MAX_GBAS];
+	uint8_t gpioQueueSize[MAX_GBAS][MAX_GBAS];
 };
 
 struct GBASIOLockstepEvent {

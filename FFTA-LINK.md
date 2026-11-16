@@ -18,11 +18,25 @@ player is in General Purpose mode: SC and SD act as shared lines (any player dri
 high), each player's SI reads the previous player's SO, and a player's own output pins read back what it wrote.
 Nothing else changes (normal multiplayer transfers, timing, single-player play).
 
+Second change (keep-alive timing): mGBA lets one linked window run up to about two frames ahead before the other
+catches up. FFTA's keep-alive flips a pin once per frame and checks the partner once per frame, so reading the
+partner's latest pins often showed an even number of flips since the last check, i.e. no change; runs of 10 to 16
+"unchanged" checks were normal and anything that lengthened them reached the game's limit of 70 ("Link Broken").
+Each pin change is now queued for the other players and taken in one per write of the link register, so every
+flip is seen once whatever the thread timing. A partner that really stops still reads as stopped. Reads of the
+register (including a debugger's or a script's) have no side effects.
+
 Files: `include/mgba/gba/interface.h`, `include/mgba/internal/gba/sio/lockstep.h`, `src/gba/io.c`,
 `src/gba/sio/lockstep.c`. Licence: MPL-2.0, as the rest of mGBA.
 
-Tested: FFTA (USA), two linked windows on one Windows PC, a co-op link mission played through. Not tested with
-other games that use General Purpose mode, or with network play.
+Tested: FFTA (USA), two linked windows on one Windows PC: co-op link missions played through; with the second
+change, ten switches into and out of General Purpose mode in one battle with the keep-alive's "unchanged" count
+staying at 0 (it reached 16 before). Not tested with other games that use General Purpose mode, or with network
+play.
+
+Known issue: with a Lua script that pauses the game often (for example a breakpoint-based recorder), the switch
+from General Purpose mode back to normal multiplayer can occasionally fail to reconnect, ending in "Link Broken".
+This has not been seen without such scripts.
 
 ## Playing
 

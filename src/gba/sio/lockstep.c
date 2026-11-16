@@ -93,6 +93,8 @@ static uint16_t GBASIOLockstepDriverWriteSIOCNT(struct GBASIODriver* driver, uin
 static uint16_t GBASIOLockstepDriverWriteRCNT(struct GBASIODriver* driver, uint16_t value);
 static uint16_t GBASIOLockstepDriverReadRCNT(struct GBASIODriver* driver, uint16_t value);
 static uint16_t _gpioInputs(struct GBASIOLockstepCoordinator*, int playerId, uint16_t value);
+static void _gpioPublish(struct GBASIOLockstepCoordinator*, int playerId, uint8_t latch);
+static void _gpioTakeIn(struct GBASIOLockstepCoordinator*, int playerId);
 static bool GBASIOLockstepDriverStart(struct GBASIODriver* driver);
 static void GBASIOLockstepDriverFinishMultiplayer(struct GBASIODriver* driver, uint16_t data[4]);
 static uint8_t GBASIOLockstepDriverFinishNormal8(struct GBASIODriver* driver);
@@ -550,8 +552,8 @@ static uint16_t GBASIOLockstepDriverWriteRCNT(struct GBASIODriver* driver, uint1
 	MutexLock(&coordinator->mutex);
 	struct GBASIOLockstepPlayer* player = TableLookup(&coordinator->players, lockstep->lockstepId);
 	if (player && player->playerId >= 0 && player->playerId < MAX_GBAS) {
-		coordinator->gpioLatch[player->playerId] = value & 0xFF;
-		coordinator->gpioActive |= 1 << player->playerId;
+		_gpioPublish(coordinator, player->playerId, value & 0xFF);
+		_gpioTakeIn(coordinator, player->playerId);
 		value = _gpioInputs(coordinator, player->playerId, value);
 	}
 	MutexUnlock(&coordinator->mutex);
@@ -593,7 +595,7 @@ static uint16_t _gpioInputs(struct GBASIOLockstepCoordinator* coordinator, int p
 				if (other == playerId || !(coordinator->gpioActive & (1 << other))) {
 					continue;
 				}
-				unsigned latch = coordinator->gpioLatch[other];
+				unsigned latch = coordinator->gpioSeen[playerId][other];
 				if ((latch >> (4 + pin)) & 1) {
 					level &= (latch >> pin) & 1;
 				}
@@ -602,19 +604,72 @@ static uint16_t _gpioInputs(struct GBASIOLockstepCoordinator* coordinator, int p
 		case 2:
 			if (playerId == 0) {
 				level = 0;
-			} else if ((coordinator->gpioActive & (1 << (playerId - 1))) && (coordinator->gpioLatch[playerId - 1] & 0x80)) {
-				level = (coordinator->gpioLatch[playerId - 1] >> 3) & 1;
+			} else if ((coordinator->gpioActive & (1 << (playerId - 1))) && (coordinator->gpioSeen[playerId][playerId - 1] & 0x80)) {
+				level = (coordinator->gpioSeen[playerId][playerId - 1] >> 3) & 1;
 			}
 			break;
 		case 3:
-			if (playerId + 1 < coordinator->nAttached && playerId + 1 < MAX_GBAS && (coordinator->gpioActive & (1 << (playerId + 1))) && (coordinator->gpioLatch[playerId + 1] & 0x40)) {
-				level = (coordinator->gpioLatch[playerId + 1] >> 2) & 1;
+			if (playerId + 1 < coordinator->nAttached && playerId + 1 < MAX_GBAS && (coordinator->gpioActive & (1 << (playerId + 1))) && (coordinator->gpioSeen[playerId][playerId + 1] & 0x40)) {
+				level = (coordinator->gpioSeen[playerId][playerId + 1] >> 2) & 1;
 			}
 			break;
 		}
 		in |= level << pin;
 	}
 	return (value & ~0xF) | in;
+}
+
+// A player writes its pins (Claude, 16 Nov 2026, second change for FFTA link battles). The lockstep driver lets
+// one emulator run up to about two frames ahead before the other catches up, so reading the partner's latest pins
+// directly made FFTA's keep-alive (one pin flip and one check per frame on each side) often see an even number
+// of partner flips between its checks, i.e. no change, and after 70 such checks it reports "Link Broken". Each
+// change is therefore queued for every other player and taken in one at a time (see _gpioTakeIn).
+static void _gpioPublish(struct GBASIOLockstepCoordinator* coordinator, int playerId, uint8_t latch) {
+	int other;
+	bool joined = !(coordinator->gpioActive & (1 << playerId));
+	bool changed = joined || coordinator->gpioLatch[playerId] != latch;
+	coordinator->gpioLatch[playerId] = latch;
+	coordinator->gpioActive |= 1 << playerId;
+	for (other = 0; other < MAX_GBAS; ++other) {
+		if (other == playerId) {
+			continue;
+		}
+		if (joined) {
+			// Fresh start for both directions: no stale changes, each sees the other as it is now
+			coordinator->gpioQueueSize[other][playerId] = 0;
+			coordinator->gpioQueueSize[playerId][other] = 0;
+			coordinator->gpioSeen[other][playerId] = latch;
+			coordinator->gpioSeen[playerId][other] = coordinator->gpioLatch[other];
+			continue;
+		}
+		if (!changed) {
+			continue;
+		}
+		uint8_t* size = &coordinator->gpioQueueSize[other][playerId];
+		uint8_t* start = &coordinator->gpioQueueStart[other][playerId];
+		if (*size == sizeof(coordinator->gpioQueue[0][0])) {
+			// Full: the other player is not taking changes in; drop the oldest
+			*start = (*start + 1) % sizeof(coordinator->gpioQueue[0][0]);
+			--*size;
+		}
+		coordinator->gpioQueue[other][playerId][(*start + *size) % sizeof(coordinator->gpioQueue[0][0])] = latch;
+		++*size;
+	}
+}
+
+// A player takes in the next queued pin change of each other player. Done when it writes RCNT, not when it reads
+// it, so that reads (including a debugger's or a script's) never change what the game sees.
+static void _gpioTakeIn(struct GBASIOLockstepCoordinator* coordinator, int playerId) {
+	int other;
+	for (other = 0; other < MAX_GBAS; ++other) {
+		if (other == playerId || !coordinator->gpioQueueSize[playerId][other]) {
+			continue;
+		}
+		uint8_t* start = &coordinator->gpioQueueStart[playerId][other];
+		coordinator->gpioSeen[playerId][other] = coordinator->gpioQueue[playerId][other][*start];
+		*start = (*start + 1) % sizeof(coordinator->gpioQueue[0][0]);
+		--coordinator->gpioQueueSize[playerId][other];
+	}
 }
 
 static bool GBASIOLockstepDriverStart(struct GBASIODriver* driver) {
