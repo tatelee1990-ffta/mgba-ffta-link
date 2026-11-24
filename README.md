@@ -4,7 +4,7 @@
 > problems with it on this fork, not to mGBA.
 >
 > - **What changed, and how to build:** [FFTA-LINK.md](FFTA-LINK.md)
-> - **Windows download:** see [Releases](https://github.com/tatelee1990-ffta/mgba/releases) (latest: `ffta-link-2`)
+> - **Windows download:** see [Releases](https://github.com/tatelee1990-ffta/mgba-ffta-link/releases) (latest: `ffta-link-2`)
 > - **Background:** [mgba-emu/mgba#3056](https://github.com/mgba-emu/mgba/issues/3056)
 >
 > The changes were written with AI assistance and are not offered to mGBA as a pull request. The original mGBA README

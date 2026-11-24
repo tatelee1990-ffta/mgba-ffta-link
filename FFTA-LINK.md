@@ -12,7 +12,7 @@ AI-generated code. The cause is documented in mGBA issue #3056 (https://github.c
 
 ## Download
 
-Windows (64-bit): `mGBA-ffta-link-2-win64.zip` from [Releases](https://github.com/tatelee1990-ffta/mgba/releases).
+Windows (64-bit): `mGBA-ffta-link-2-win64.zip` from [Releases](https://github.com/tatelee1990-ffta/mgba-ffta-link/releases).
 Unzip it anywhere and run `mGBA.exe`; its settings stay in that folder (`portable.ini`), so it does not touch another
 mGBA you have installed. The zip includes the licences of mGBA and the bundled libraries, the exact source change
 (`mgba-gpio-link.patch`, against mGBA commit 143adf5) and `SOURCES.txt`. Other systems: build from this branch
@@ -70,8 +70,8 @@ This has not been seen without such scripts.
 
 ```
 pacman -S --needed --noconfirm git mingw-w64-x86_64-{gcc,cmake,ninja,pkgconf,qt5-base,qt5-multimedia,qt5-tools,SDL2,lua54,libzip,libepoxy,libelf,sqlite3,libpng,zlib,freetype}
-git clone -b ffta-link-battles https://github.com/tatelee1990-ffta/mgba.git
-cd mgba
+git clone -b ffta-link-battles https://github.com/tatelee1990-ffta/mgba-ffta-link.git
+cd mgba-ffta-link
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_QT=ON -DBUILD_SDL=OFF -DUSE_FFMPEG=OFF -DUSE_DISCORD_RPC=OFF -DUSE_LUA=5.4 -DM_CORE_GB=OFF -DUSE_MINIZIP=OFF -DBUILD_SHARED=OFF -DBUILD_STATIC=ON
 ninja -C build
 ```
