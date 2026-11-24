@@ -3,6 +3,10 @@
 > "Link Broken" as soon as a unit acts). It is **not made, reviewed or supported by the mGBA team**; please report
 > problems with it on this fork, not to mGBA.
 >
+> [![FFTA co-op link mission "Real Hunt" in two linked mGBA windows](https://img.youtube.com/vi/yjo86_CNN3I/hqdefault.jpg)](https://www.youtube.com/watch?v=yjo86_CNN3I)
+>
+> *Demo: co-op link mission "Real Hunt" (the second hunt mission) played through with ffta-link-2.*
+>
 > - **What changed, and how to build:** [FFTA-LINK.md](FFTA-LINK.md)
 > - **Windows download:** see [Releases](https://github.com/tatelee1990-ffta/mgba-ffta-link/releases) (latest: `ffta-link-2`)
 > - **Background:** [mgba-emu/mgba#3056](https://github.com/mgba-emu/mgba/issues/3056)

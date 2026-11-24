@@ -20,6 +20,11 @@ mGBA you have installed. The zip includes the licences of mGBA and the bundled l
 
 No ROMs, BIOS files or saves are provided. Use your own legally obtained copy of the game.
 
+## Demo
+
+Video: co-op link mission "Real Hunt" (the second hunt mission) played through with ffta-link-2:
+https://www.youtube.com/watch?v=yjo86_CNN3I
+
 ## Versions
 
 | Release | What it has |
