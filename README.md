@@ -1,3 +1,17 @@
+> **Unofficial fork: Final Fantasy Tactics Advance link battles.** This branch is mGBA with two small changes to the
+> link code so that FFTA's co-op link missions work between two linked mGBA windows (in standard mGBA they end in
+> "Link Broken" as soon as a unit acts). It is **not made, reviewed or supported by the mGBA team**; please report
+> problems with it on this fork, not to mGBA.
+>
+> - **What changed, and how to build:** [FFTA-LINK.md](FFTA-LINK.md)
+> - **Windows download:** see [Releases](https://github.com/tatelee1990-ffta/mgba/releases) (latest: `ffta-link-2`)
+> - **Background:** [mgba-emu/mgba#3056](https://github.com/mgba-emu/mgba/issues/3056)
+>
+> The changes were written with AI assistance and are not offered to mGBA as a pull request. The original mGBA README
+> follows unchanged.
+
+---
+
 mGBA
 ====
 

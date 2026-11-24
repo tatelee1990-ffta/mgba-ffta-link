@@ -1,17 +1,35 @@
 # FFTA link-battle build (unofficial mGBA fork)
 
-This branch is mGBA (commit 143adf5, October 2026 development build) with one change that lets
+This branch is mGBA (commit 143adf5, October 2026 development build) with two changes to the link code that let
 **Final Fantasy Tactics Advance link battles** (co-op link missions) work between two linked mGBA windows.
-In standard mGBA they end in "Link Broken" as soon as a unit acts.
+In standard mGBA they end in "Link Broken" as soon as a unit acts. Trading units and items already works in standard
+mGBA; this is only about the co-op missions.
 
 **This is not an official mGBA build.** It is not made, reviewed or supported by the mGBA team. Please do not
-report problems with it to the mGBA project; open an issue on this fork instead. The change was written with AI
-assistance (Claude, by Anthropic) and checked by testing; it is not offered upstream, because mGBA does not accept
+report problems with it to the mGBA project; open an issue on this fork instead. The changes were written with AI
+assistance (Claude, by Anthropic) and checked by testing; they are not offered upstream, because mGBA does not accept
 AI-generated code. The cause is documented in mGBA issue #3056 (https://github.com/mgba-emu/mgba/issues/3056).
+
+## Download
+
+Windows (64-bit): `mGBA-ffta-link-2-win64.zip` from [Releases](https://github.com/tatelee1990-ffta/mgba/releases).
+Unzip it anywhere and run `mGBA.exe`; its settings stay in that folder (`portable.ini`), so it does not touch another
+mGBA you have installed. The zip includes the licences of mGBA and the bundled libraries, the exact source change
+(`mgba-gpio-link.patch`, against mGBA commit 143adf5) and `SOURCES.txt`. Other systems: build from this branch
+(below; the Linux and macOS steps are mGBA's usual ones, not tested here).
+
+No ROMs, BIOS files or saves are provided. Use your own legally obtained copy of the game.
+
+## Versions
+
+| Release | What it has |
+|---|---|
+| `ffta-link-1` | First change: General Purpose pin levels shared between linked players. Co-op missions get past the first action. Source only. |
+| `ffta-link-2` | Adds the second change (keep-alive timing): every pin flip is now seen, which removes the "Link Broken" drops from missed keep-alive checks seen in testing. First Windows download. |
 
 ## What changed
 
-In a multiplayer link, FFTA's battles switch the serial port to General Purpose mode and run a keep-alive that
+First change (pin sharing): in a multiplayer link, FFTA's battles switch the serial port to General Purpose mode and run a keep-alive that
 toggles the link pins and watches the partner's. Standard mGBA does not pass those pin levels between linked
 players, so the partner looks dead and the game reports "Link Broken". This branch shares them while every linked
 player is in General Purpose mode: SC and SD act as shared lines (any player driving low pulls them low, otherwise
